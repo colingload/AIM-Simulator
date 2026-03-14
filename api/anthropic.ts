@@ -1,4 +1,4 @@
-// Vercel serverless function — proxies /api/anthropic/* to Anthropic API
+// Vercel serverless function — proxies /api/anthropic to Anthropic API
 // Keeps the API key server-side (set ANTHROPIC_API_KEY in Vercel env vars)
 
 export const config = { runtime: "edge" };
@@ -7,10 +7,6 @@ export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
-
-  const url = new URL(req.url);
-  // Strip /api/anthropic prefix to get the real Anthropic path (e.g., /v1/messages)
-  const anthropicPath = url.pathname.replace(/^\/api\/anthropic/, "");
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -23,7 +19,7 @@ export default async function handler(req: Request): Promise<Response> {
   try {
     const body = await req.text();
 
-    const res = await fetch(`https://api.anthropic.com${anthropicPath}`, {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
