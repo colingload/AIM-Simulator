@@ -469,7 +469,7 @@ export default function App() {
 
   // ── DESKTOP LAYOUT ──
   return (
-    <div onClick={unlockAudio} style={{position:"fixed",inset:0,background:"linear-gradient(180deg,#3a6ec8 0%,#5b9bd5 44%,#4a8f3f 44%,#3d7a35 100%)",overflow:"hidden",fontFamily:F}}>
+    <div onClick={unlockAudio} style={{position:"fixed",inset:0,background:"url('/xp-bg.jpg') center/cover no-repeat",overflow:"hidden",fontFamily:F}}>
 
       <div style={{position:"absolute",top:8,left:8,display:"flex",flexDirection:"column",gap:14}}>
         {[["🌐","Internet\nExplorer"],["💣","Minesweeper"],["💻","My Computer"],["📝","Notepad"],["🎨","Paint"]].map(([ic,lb])=>(

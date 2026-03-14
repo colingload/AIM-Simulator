@@ -32,15 +32,18 @@ function BuddyList({sn,statuses,onOpen,onOff,mobile,unread,myAway,onSetAway}: Bu
           <XBtn onClick={()=>{unlockAudio();onOff();}}/>
         </div>}
       </div>
-      <div style={{background:"#fff",padding:mobile?"10px 14px":"6px 6px 5px",borderBottom:"2px solid #808080",display:"flex",alignItems:"center",gap:mobile?12:7}}>
-        <Man sz={mobile?36:30}/>
+      <div style={{background:"#fff",padding:mobile?"10px 14px":"6px 6px 5px",borderBottom:"2px solid #808080",display:"flex",alignItems:"center",gap:mobile?10:6}}>
+        <span style={{fontSize:mobile?32:26,lineHeight:1}}>🏃</span>
         <div>
-          <div style={{fontSize:mobile?15:12,fontWeight:"bold",color:"#ff6600",fontFamily:"Arial Black,sans-serif"}}>AOL</div>
-          <div style={{fontSize:mobile?12:10,lineHeight:1.2}}>Instant Messenger™</div>
+          <div style={{fontSize:mobile?16:13,fontWeight:"bold",fontFamily:"Arial,sans-serif",lineHeight:1.1}}>
+            <span style={{color:"#000"}}>AOL</span>{" "}
+            <span style={{color:"#000",fontWeight:"bold"}}>Instant</span>
+          </div>
+          <div style={{fontSize:mobile?14:11,fontWeight:"bold",fontFamily:"Arial,sans-serif",lineHeight:1.1}}>Messenger™</div>
         </div>
-        <div style={{marginLeft:"auto",fontSize:mobile?12:10,color:"#555"}}>{sn}</div>
+        <div style={{marginLeft:"auto",fontSize:mobile?11:9,color:"#555"}}>{sn}</div>
       </div>
-      <div style={{background:"#d4d0c8",fontSize:mobile?12:10,fontWeight:"bold",padding:mobile?"5px 14px":"2px 6px",letterSpacing:1,borderBottom:"1px solid #888"}}>BUDDIES</div>
+      <div style={{background:"#d4d0c8",fontSize:mobile?12:10,fontWeight:"bold",padding:mobile?"5px 14px":"2px 6px",letterSpacing:1,borderBottom:"1px solid #888",color:"#0000aa"}}>BUDDIES</div>
       <div style={{background:"#fff",flex:1,overflowY:"auto",maxHeight:mobile?"none":260}}>
         <div style={{fontSize:mobile?13:11,fontWeight:"bold",padding:mobile?"4px 14px":"1px 6px",background:"#d4d0c8",borderBottom:"1px solid #c0bdb5"}}>Buddies</div>
         {BUDDIES.map(b=>{
@@ -69,14 +72,43 @@ function BuddyList({sn,statuses,onOpen,onOff,mobile,unread,myAway,onSetAway}: Bu
         </div>
       )}
       {showAwayInput && myAway === null && (
-        <div style={{background:"#f0ede8",padding:mobile?"8px 14px":"4px 8px",borderTop:"1px solid #aaa",fontSize:mobile?12:10}}>
-          <input value={awayInput} onChange={e=>setAwayInput(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter"&&awayInput.trim()){onSetAway?.(awayInput.trim());setAwayInput("");setShowAwayInput(false);}}}
-            placeholder="Type away message..."
-            style={{width:"100%",padding:"2px 4px",fontSize:mobile?13:10,fontFamily:F,border:"1px inset #808080",marginBottom:3,boxSizing:"border-box"}}/>
-          <div style={{display:"flex",gap:3}}>
-            <button onClick={()=>{if(awayInput.trim()){onSetAway?.(awayInput.trim());setAwayInput("");setShowAwayInput(false);}}} style={{...BS,fontSize:mobile?11:9,padding:mobile?"4px 8px":"1px 6px"}}>Set Away</button>
-            <button onClick={()=>{setShowAwayInput(false);setAwayInput("");}} style={{...BS,fontSize:mobile?11:9,padding:mobile?"4px 8px":"1px 6px"}}>Cancel</button>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:800}} onClick={()=>{setShowAwayInput(false);setAwayInput("");}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:WB,border:"2px solid",borderColor:"#fff #444 #444 #fff",width:"90%",maxWidth:320,fontFamily:F,boxShadow:"3px 3px 8px rgba(0,0,0,0.5)"}}>
+            <div style={{background:"linear-gradient(180deg,#0058ee 0%,#3a93ff 8%,#0058ee 40%,#0047cc 100%)",padding:"2px 5px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{color:"#fff",fontSize:11,fontWeight:"bold"}}>Edit Away Message</span>
+              <XBtn onClick={()=>{setShowAwayInput(false);setAwayInput("");}}/>
+            </div>
+            <div style={{padding:"6px 10px",background:WB}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                <span style={{fontSize:10}}>Enter label:</span>
+                <select disabled style={{flex:1,padding:"1px 3px",fontSize:10,fontFamily:F,border:"1px inset #808080"}}>
+                  <option>Away</option>
+                </select>
+              </div>
+              <div style={{fontSize:10,marginBottom:4}}>Enter new Away message:</div>
+              <div style={{background:"#ece9d8",padding:"2px 4px",borderBottom:"1px solid #aaa",display:"flex",gap:3,marginBottom:0}}>
+                {["A","𝐀","A▾","A","ᴬA","𝐁","𝐼","U","link","☺"].map((t,i)=>(
+                  <span key={i} style={{...BS,fontSize:8,padding:"0px 3px",cursor:"default",display:"inline-block"}}>{t}</span>
+                ))}
+              </div>
+              <textarea value={awayInput} onChange={e=>setAwayInput(e.target.value)}
+                onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&awayInput.trim()){e.preventDefault();onSetAway?.(awayInput.trim());setAwayInput("");setShowAwayInput(false);}}}
+                placeholder="eternal sunshine of the spotless mind.&#10;&#10;leave love. make it ring."
+                style={{width:"100%",minHeight:80,padding:"6px 8px",fontSize:11,fontFamily:"Georgia,serif",fontStyle:"italic",color:"#cc6600",border:"1px inset #808080",borderTop:"none",resize:"vertical",boxSizing:"border-box"}}/>
+              <div style={{fontSize:9,color:"#444",lineHeight:1.6,marginTop:6}}>
+                <div style={{fontWeight:"bold"}}>Special Characters:</div>
+                <div>%n = Screen Name of Buddy</div>
+                <div>%d = Current date</div>
+                <div>%t = Current time</div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginTop:4,marginBottom:2}}>
+                <label style={{fontSize:9,display:"flex",alignItems:"center",gap:3}}><input type="checkbox"/>Save for later use</label>
+              </div>
+            </div>
+            <div style={{borderTop:"1px solid #aaa",padding:"6px 10px",display:"flex",justifyContent:"center",gap:8,background:"#ece9d8"}}>
+              <button onClick={()=>{if(awayInput.trim()){onSetAway?.(awayInput.trim());setAwayInput("");setShowAwayInput(false);}}} style={{...BS,fontSize:10,padding:"3px 16px",fontWeight:"bold"}}>{"I'm Away"}</button>
+              <button onClick={()=>{setShowAwayInput(false);setAwayInput("");}} style={{...BS,fontSize:10,padding:"3px 16px"}}>Cancel</button>
+            </div>
           </div>
         </div>
       )}
