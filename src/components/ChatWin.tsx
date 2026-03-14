@@ -29,9 +29,11 @@ interface ChatWinProps {
   strikes: number;
   onStrike: () => void;
   tryTension: ((buddyId: string, exchangeCount: number) => string | null) | null;
+  tryJordanMention?: ((buddyId: string, exchangeCount: number) => string | null) | null;
+  jordanStage?: number;
 }
 
-function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,buddyStarted,onWin,mobile,strikes,onStrike,tryTension}: ChatWinProps) {
+function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,buddyStarted,onWin,mobile,strikes,onStrike,tryTension,tryJordanMention,jordanStage=0}: ChatWinProps) {
   const buddy=BUDDIES.find(b=>b.id===buddyId)!;
   const [msgs,setMsgs]=useState<(Message & {err?:boolean})[]>([]);
   const [inp,setInp]=useState("");
@@ -76,8 +78,9 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
         await new Promise(r=>setTimeout(r,thinkMs()));
         setTyping(true);
         const tt=typingMs(p);
-        // 35% chance of typing-stop-typing pattern (second-guessing themselves)
-        if(Math.random()<0.35 && tt>2000){
+        // typing-stop-typing pattern (second-guessing). Higher chance for Jordan at stage 2+
+        const hesitateChance = (buddyId==="crush"&&jordanStage>=2) ? 0.50 : 0.35;
+        if(Math.random()<hesitateChance && tt>2000){
           await new Promise(r=>setTimeout(r,tt*0.4));
           setTyping(false);
           await new Promise(r=>setTimeout(r,800+Math.random()*1800));
@@ -243,7 +246,12 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
       // Check for tension moment — inject drama prompt if triggered
       const exchangeCount = conv.current.filter((m:ConvMessage)=>m.role==="user").length;
       const tensionPrompt = tryTension ? tryTension(buddyId, exchangeCount) : null;
-      const systemForCall = (tensionPrompt ? buddy.system + "\n\nIMPORTANT OVERRIDE FOR THIS ONE REPLY ONLY: " + tensionPrompt : buddy.system) + timeCtx.current;
+      // Check if this buddy should casually mention Jordan
+      const jordanMention = tryJordanMention ? tryJordanMention(buddyId, exchangeCount) : null;
+      let systemForCall = (tensionPrompt ? buddy.system + "\n\nIMPORTANT OVERRIDE FOR THIS ONE REPLY ONLY: " + tensionPrompt : buddy.system) + timeCtx.current;
+      if(jordanMention){
+        systemForCall += "\n\nAFTER you respond to what they said, casually add this in a separate message chunk (use ||): \""+jordanMention+"\". Make it feel natural and offhand, like you just thought of it. Don't make a big deal of it.";
+      }
       // Use marked conv (with session separators) for Jordan, raw conv for others
       const convForApi = buddyId==="crush" ? getMarkedConv() : conv.current;
       const raw=await callClaude(systemForCall,convForApi);
@@ -260,8 +268,8 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
           await storageSetShared("feedback_log",existing);
         }catch(e){}
       }
-      // Win detection for Jordan
-      if(buddyId==="crush"&&onWin&&conv.current.length>=4){
+      // Win detection for Jordan — only at stage 4 (relationship must develop over multiple sessions)
+      if(buddyId==="crush"&&onWin&&conv.current.length>=4&&jordanStage>=4){
         try{
           const last4=conv.current.slice(-4);
           const check=await callClaude(

@@ -55,6 +55,8 @@ export default function App() {
   const [myAway,setMyAway]=useState<string|null>(null);
   const tensionCount=useRef(0);
   const tensionUsedBy=useRef(new Set<string>());
+  const jordanStage=useRef(0);
+  const jordanMentioned=useRef(false);
   const mobileRef=useRef(mobile);
   useEffect(()=>{mobileRef.current=mobile;},[mobile]);
   const buddyInit=useRef(new Set<string>());
@@ -88,6 +90,25 @@ export default function App() {
   }
 
   // ── TENSION SYSTEM ──────────────────────────────────────────────
+  // ── JORDAN MENTIONS (other buddies casually reference Jordan) ──
+  const JORDAN_MENTIONS: Record<string, string[]> = {
+    gossip:  ["omg ok dont tell anyone but i think jordan was asking about u","wait do u talk to xo_Jordan_xo?? interesting","ok so i heard something about jordan but u didnt hear it from me","have u seen jordans away message lately lol"],
+    sportz:  ["yo i saw jordan at school today lol","hey random but do u know jordan","dude jordan was at the game did u know that"],
+    music:   ["jordan has good taste in music actually","hey did jordan ever send u that song","xo_Jordan_xo has a sick away message rn"],
+    angst:   ["do u ever talk to jordan... nvm","jordan is... different","sometimes i wonder about jordan idk"],
+  };
+  function tryJordanMention(buddyId: string, exchangeCount: number): string|null {
+    if(jordanMentioned.current) return null; // only once per session
+    if(buddyId==="crush"||buddyId==="claudebot") return null;
+    if(exchangeCount<3) return null; // need some rapport first
+    if(stRef.current.crush==="offline"&&!BUDDIES.find(b=>b.id==="crush")) return null;
+    if(Math.random()>0.15) return null; // 15% chance
+    jordanMentioned.current=true;
+    const pool=JORDAN_MENTIONS[buddyId];
+    if(!pool||!pool.length) return null;
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+
   const TENSION_PROMPTS: Record<string, string> = {
     gossip:  "RIGHT NOW you are suddenly upset or annoyed at the user. Pick one: (a) you feel like they aren't listening to you or don't care about what you're saying, (b) you're jealous — you saw them talking to someone else or their away message was suspicious, (c) you heard a rumor about them. Be dramatic but not over the top. Don't explain that you're doing a tension moment. Just BE upset naturally. Stay in character.",
     crush:   "RIGHT NOW something the user said (or didn't say) made you feel hurt or awkward. Pick one: (a) you feel like they don't actually care and you're just convenient, (b) you misread something they said and got embarrassed and are shutting down, (c) you almost said something real but now you're pulling back and being cold. Be subtle — don't explain yourself. Just get quiet or short. Maybe a 'nvm' or 'forget it' or 'ok'. Let it breathe. Stay in character.",
@@ -158,7 +179,7 @@ export default function App() {
 
       stRef.current={...stRef.current,[bid]:next};
       setStatuses({...stRef.current});
-      if(next==="away"){playSound(SND_BUDDYOUT);toast(b.emoji+" "+b.sn+" is away");genAway(b).then(m=>setAwayMsgs(p=>({...p,[bid]:m}))).catch(()=>setAwayMsgs(p=>({...p,[bid]:b.away[0]})));}
+      if(next==="away"){playSound(SND_BUDDYOUT);toast(b.emoji+" "+b.sn+" is away");genAway(b,b.id==="crush"?jordanStage.current:undefined).then(m=>setAwayMsgs(p=>({...p,[bid]:m}))).catch(()=>setAwayMsgs(p=>({...p,[bid]:b.away[0]})));}
       else if(next==="online"){
         playSound(SND_BUDDYIN);toast(b.emoji+" "+b.sn+" is online");
         setTimeout(async()=>{
@@ -186,8 +207,16 @@ export default function App() {
     music:     [20, 45, 35],
     gossip:    [5,  20, 75],
     angst:     [40, 45, 15],
-    crush:     [35, 45, 20],
+    crush:     [35, 45, 20], // base — overridden by stage
   };
+  // Jordan outreach evolves with relationship stage
+  function getCrushOutreach(): number[] {
+    const s=jordanStage.current;
+    if(s>=3) return [5, 40, 55];   // almost never skips, sends real messages
+    if(s>=2) return [15, 40, 45];  // initiates more
+    if(s>=1) return [25, 45, 30];  // slightly less shy
+    return [35, 45, 20];           // default: shy
+  }
 
   const schedIncoming=useCallback((bid: string, first=false)=>{
     const b=BUDDIES.find(x=>x.id===bid);
@@ -198,7 +227,7 @@ export default function App() {
     itm.current[bid]=setTimeout(async()=>{
       if(stRef.current[bid]!=="online"){schedIncoming(bid);return;}
 
-      const [skipPct, quickPct] = OUTREACH_STYLE[bid] || [30, 40, 30];
+      const [skipPct, quickPct] = bid==="crush" ? getCrushOutreach() : (OUTREACH_STYLE[bid] || [30, 40, 30]);
       const roll = Math.random()*100;
 
       if(roll < skipPct){
@@ -266,6 +295,18 @@ export default function App() {
       await storageSet("chat_"+b.id, {messages:[], conv:saved?.conv||[], lastTalkDate:saved?.lastTalkDate});
     }
 
+    // ── Calculate Jordan relationship stage (subtle progression) ──
+    const jordanChat = await storageGet("chat_crush");
+    const jordanExchanges = (jordanChat?.conv||[]).filter((m:{role:string})=>m.role==="user").length;
+    const jordanSessions = (jordanChat?.sessionLog||[]).length;
+    let stage = 0;
+    if(jordanExchanges>=50 && jordanSessions>=7) stage=4;
+    else if(jordanExchanges>=35 && jordanSessions>=5) stage=3;
+    else if(jordanExchanges>=20 && jordanSessions>=3) stage=2;
+    else if(jordanExchanges>=8) stage=1;
+    jordanStage.current=stage;
+    jordanMentioned.current=false;
+
     let jordanOGGender = await storageGet("jordan_og_gender");
     if(!jordanOGGender){
       jordanOGGender = gender;
@@ -288,9 +329,40 @@ export default function App() {
       { label:"distracted", tone:"Something is on your mind today and it shows. Short responses. You seem like you're about to say something big then pull back. If they notice and ask, you deflect but seem touched they asked. You might eventually hint at something vague but never explain it." },
       { label:"playful", tone:"You are in a rare teasing mood today. A little more confident, a little sarcastic in a cute way. You make a joke at their expense that's clearly affectionate. You are still awkward but the energy is lighter and you are more back and forth. You are kind of driving the conversation and enjoying it." },
     ];
-    const sessionMood = jordanMoods[Math.floor(Math.random()*jordanMoods.length)];
+    // Weight moods by relationship stage — subtle shift toward warmer moods as relationship deepens
+    const moodWeights: number[][] = [
+      [25,25,15,10,15,10], // stage 0: mostly reserved/nervous
+      [20,25,20,10,15,10], // stage 1: still cautious
+      [10,15,25,15,15,20], // stage 2: more pleased/playful
+      [5,10,25,25,10,25],  // stage 3+: open/playful/pleased
+      [5,10,25,25,10,25],  // stage 4: same as 3
+    ];
+    const weights = moodWeights[stage] || moodWeights[0];
+    const totalW = weights.reduce((a,b)=>a+b,0);
+    let roll = Math.random()*totalW, moodIdx = 0;
+    for(let i=0;i<weights.length;i++){roll-=weights[i];if(roll<=0){moodIdx=i;break;}}
+    const sessionMood = jordanMoods[moodIdx];
+
+    // Late night bias — after 10pm, favor open/distracted moods
+    const hour = new Date().getHours();
+    if(hour >= 22 || hour < 2){
+      const lateNightMoods = [jordanMoods[3],jordanMoods[4]]; // open, distracted
+      if(Math.random()<0.5){
+        const picked = lateNightMoods[Math.floor(Math.random()*lateNightMoods.length)];
+        Object.assign(sessionMood, picked);
+      }
+    }
+
+    const stageCtx = [
+      "", // stage 0: no extra context needed
+      " You've talked a few times now. You're starting to look forward to seeing their screenname come online.",
+      " You've been talking for a while. You have little inside references from past conversations. You think about what to say before they sign on.",
+      " This person means something to you. The feelings are getting harder to hide. You catch yourself almost saying something real.",
+      " This person means something to you. The feelings are getting harder to hide. You catch yourself almost saying something real.",
+    ][stage] || "";
 
     const crushSystem = "You are xo_Jordan_xo, a 16yo "+crushGender+" on AIM 2003 with a secret crush on the user that you would NEVER directly admit. Core rules always: you clearly like them but hide it. You overthink what they say. You remember small details from past conversations — reference them naturally. Compliment them then immediately play it off. Weave in 2003 teen life naturally: mix CDs, passing notes, AIM profiles, Seventeen quizzes, movies at the mall, away message stalking, A Walk to Remember, school lunch, butterflies when they sign on. Sometimes ramble in a long lowercase run-on when nervous. IMPORTANT — you have talked before, the conversation history shows prior sessions. Build on it. Let the relationship slowly develop over time like real teenagers would."
+    + stageCtx
     + " TODAY'S MOOD (follow this closely, it defines how you act this session): "+jordanVoice+" "+sessionMood.tone
     + " User SN: "+sn+". "+ogGAddr+"." + AIM_STYLE;
     const crushBuddy = BUDDIES.find(b=>b.id==="crush");
@@ -313,6 +385,38 @@ export default function App() {
       }
     });
     stRef.current=init; setStatuses(init);
+
+    // "Just missed you" moment — Jordan signs on suspiciously soon (20% chance, stage 1+)
+    if(jordanMode==="normal" && init.crush==="offline" && stage>=1 && Math.random()<0.20){
+      const quickDelay = 2000 + Math.random()*3000; // 2-5 seconds
+      setTimeout(()=>{
+        stRef.current={...stRef.current,crush:"online"};
+        setStatuses({...stRef.current});
+        playSound(SND_BUDDYIN);
+        toast("💘 xo_Jordan_xo is online");
+        schedNext("crush");
+        schedIncoming("crush",true);
+      },quickDelay);
+    }
+
+    // Sign-off fake-out — Jordan goes offline briefly then comes back (10% chance, stage 2+)
+    if(jordanMode==="normal" && init.crush==="online" && stage>=2 && Math.random()<0.10){
+      const fakeoutDelay = 60000 + Math.random()*120000; // 1-3 min after sign-in
+      setTimeout(()=>{
+        if(stRef.current.crush!=="online") return;
+        stRef.current={...stRef.current,crush:"offline"};
+        setStatuses({...stRef.current});
+        playSound(SND_BUDDYOUT);
+        toast("💘 xo_Jordan_xo signed off");
+        // Come back after 30-60 seconds
+        setTimeout(()=>{
+          stRef.current={...stRef.current,crush:"online"};
+          setStatuses({...stRef.current});
+          playSound(SND_BUDDYIN);
+          toast("💘 xo_Jordan_xo is online");
+        }, 30000 + Math.random()*30000);
+      },fakeoutDelay);
+    }
 
     if(jordanMode==="ghost"){
       setTimeout(()=>{
@@ -431,6 +535,16 @@ export default function App() {
       BUDDIES.forEach(b => {
         if (b.always || stRef.current[b.id] !== "online") return;
         if (!openChatsRef.current.includes(b.id)) return;
+        // Jordan has special stage-aware reactions
+        if (b.id === "crush" && jordanStage.current >= 2) {
+          const s = jordanStage.current;
+          const jordanWbs = s >= 3
+            ? ["i liked ur away message","ur away message... yeah","i keep reading ur away message lol nvm","wb... i noticed u were gone","hey ur back"]
+            : ["nice away msg lol","i saw ur away message","wb","oh ur back lol"];
+          const txt = jordanWbs[Math.floor(Math.random() * jordanWbs.length)];
+          setTimeout(() => sendBuddyMsg(b.id, b.sn, txt), 2000 + Math.random() * 5000);
+          return;
+        }
         const wbs = ["wb!", "wb", "oh ur back", "hey wb", "wbbb", "oh hey wb", "wb lol", "ayy ur back"];
         const txt = wbs[Math.floor(Math.random() * wbs.length)];
         setTimeout(() => sendBuddyMsg(b.id, b.sn, txt), 1500 + Math.random() * 4000);
@@ -458,7 +572,7 @@ export default function App() {
         ) : (
           <ChatWin key={chatBid} buddyId={chatBid} sn={mySN} status={statuses[chatBid]} awayMsg={awayMsgs[chatBid]}
             onClose={()=>closeChat(chatBid)} onTop={()=>{}} extUpdate={unsol[chatBid]} sessionId={sessionId.current}
-            buddyStarted={buddyInit.current.has(chatBid)} onWin={triggerWin} mobile={true} strikes={strikes} onStrike={handleStrike} tryTension={tryTension}/>
+            buddyStarted={buddyInit.current.has(chatBid)} onWin={triggerWin} mobile={true} strikes={strikes} onStrike={handleStrike} tryTension={tryTension} tryJordanMention={tryJordanMention} jordanStage={jordanStage.current}/>
         )}
         <Toasts items={toasts}/>
         {awayBuddy && awayPop && <AwayPopup buddy={awayBuddy} msg={awayMsgs[awayPop]} onClose={()=>setAwayPop(null)}/>}
@@ -494,7 +608,7 @@ export default function App() {
         <Drag key={id} x0={290+i*28} y0={14+i*26} z={focused===id?100:50+i} onTop={()=>setFocused(id)}>
           <ChatWin buddyId={id} sn={mySN} status={statuses[id]} awayMsg={awayMsgs[id]}
             onClose={()=>closeChat(id)} onTop={()=>setFocused(id)} extUpdate={unsol[id]} sessionId={sessionId.current}
-            buddyStarted={buddyInit.current.has(id)} onWin={triggerWin} mobile={false} strikes={strikes} onStrike={handleStrike} tryTension={tryTension}/>
+            buddyStarted={buddyInit.current.has(id)} onWin={triggerWin} mobile={false} strikes={strikes} onStrike={handleStrike} tryTension={tryTension} tryJordanMention={tryJordanMention} jordanStage={jordanStage.current}/>
         </Drag>
       ))}
 
