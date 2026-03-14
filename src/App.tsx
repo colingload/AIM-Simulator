@@ -55,6 +55,8 @@ export default function App() {
   const [strikes,setStrikes]=useState(0);
   const [banned,setBanned]=useState(false);
   const [myAway,setMyAway]=useState<string|null>(null);
+  const myAwayRef=useRef<string|null>(null);
+  useEffect(()=>{myAwayRef.current=myAway;},[myAway]);
   const tensionCount=useRef(0);
   const tensionUsedBy=useRef(new Set<string>());
   const jordanStage=useRef(0);
@@ -172,7 +174,8 @@ export default function App() {
     tmr.current[bid]=setTimeout(async()=>{
       if(next==="offline"&&activeCount(stRef.current)<=1)next="away";
 
-      if((next==="away"||next==="offline")&&cur==="online"&&Math.random()<0.75){
+      const playerAway=myAwayRef.current!==null;
+      if(!playerAway&&(next==="away"||next==="offline")&&cur==="online"&&Math.random()<0.75){
         const pool=next==="away"?BRB_MSGS:GTG_MSGS;
         const txt=pool[Math.floor(Math.random()*pool.length)];
         await sendBuddyMsg(bid,b.sn,txt);
@@ -184,11 +187,13 @@ export default function App() {
       if(next==="away"){playSound(SND_BUDDYOUT);toast(b.emoji+" "+b.sn+" is away");genAway(b,b.id==="crush"?jordanStage.current:undefined).then(m=>setAwayMsgs(p=>({...p,[bid]:m}))).catch(()=>setAwayMsgs(p=>({...p,[bid]:b.away[0]})));}
       else if(next==="online"){
         playSound(SND_BUDDYIN);toast(b.emoji+" "+b.sn+" is online");
-        setTimeout(async()=>{
-          const backMsgs=["back","backkk","ok im back","sorry had to go real quick","k im back","haha ok back","ok back sry","lol back","okay back","ugh finally back"];
-          const txt=backMsgs[Math.floor(Math.random()*backMsgs.length)];
-          await sendBuddyMsg(bid,b.sn,txt);
-        },2000+Math.random()*3000);
+        if(!playerAway){
+          setTimeout(async()=>{
+            const backMsgs=["back","backkk","ok im back","sorry had to go real quick","k im back","haha ok back","ok back sry","lol back","okay back","ugh finally back"];
+            const txt=backMsgs[Math.floor(Math.random()*backMsgs.length)];
+            await sendBuddyMsg(bid,b.sn,txt);
+          },2000+Math.random()*3000);
+        }
       }
       else{playSound(SND_BUDDYOUT);toast(b.emoji+" "+b.sn+" signed off");}
       schedNext(bid);
@@ -228,6 +233,8 @@ export default function App() {
     const delay = first ? (8000+Math.random()*6000)*pm : (3+Math.random()*3)*60000*pm;
     itm.current[bid]=setTimeout(async()=>{
       if(stRef.current[bid]!=="online"){schedIncoming(bid);return;}
+      // Don't message the player while they're away — but keep rescheduling
+      if(myAwayRef.current!==null){schedIncoming(bid);return;}
 
       const [skipPct, quickPct] = bid==="crush" ? getCrushOutreach() : (OUTREACH_STYLE[bid] || [30, 40, 30]);
       const roll = Math.random()*100;
