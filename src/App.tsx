@@ -30,11 +30,13 @@ import KickedScreen from "./components/KickedScreen";
 import BannedScreen from "./components/BannedScreen";
 import Drag from "./components/Drag";
 import Man from "./components/icons/Man";
+import AwayCreator from "./components/AwayCreator";
 
 export default function App() {
   const mobile=useIsMobile();
   const [screen,setScreen]=useState("signin");
   const [mySN,setMySN]=useState(MY_SN);
+  const [awayMode,setAwayMode]=useState(()=>new URLSearchParams(window.location.search).get("away")==="1");
   const sessionId=useRef("");
   const paceRef=useRef<PaceConfig>(PACE.normal);
   const [statuses,setStatuses]=useState<Record<string, BuddyStatus>>({});
@@ -558,6 +560,7 @@ export default function App() {
   if(screen==="kicked") return <KickedScreen onSignIn={()=>setScreen("signin")}/>;
 
   if(won)return <FinalScreen onReplay={()=>{storageSet("jordan_won",false);setWon(false);setScreen("signin");setOpenChats([]);}}/>;
+  if(awayMode)return <AwayCreator onGoToApp={()=>{setAwayMode(false);window.history.replaceState({},"",window.location.pathname);}}/>;
   if(screen==="signin")return <SignOn onSignIn={signIn}/>;
 
   const awayBuddy = awayPop ? BUDDIES.find(b=>b.id===awayPop) : null;

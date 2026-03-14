@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { F, TG, WB, BS } from "../constants/styles";
-import { storageGet, storageSet } from "../utils/storage";
+import { storageGet, storageSet, storageGetShared, storageSetShared } from "../utils/storage";
 import { unlockAudio, playSound, SND_DOOROPEN } from "../constants/sounds";
 import Man from "./icons/Man";
 import XBtn from "./icons/XBtn";
@@ -18,6 +18,8 @@ function SignOn({onSignIn}: SignOnProps) {
   const [newSN,setNewSN]=useState("");
   const [gender,setGender]=useState("");
   const [pace,setPace]=useState<PaceMode>("normal");
+  const [firstVisit,setFirstVisit]=useState(false);
+  const [signOnCount,setSignOnCount]=useState<number|null>(null);
 
   useEffect(()=>{
     (async()=>{
@@ -32,6 +34,10 @@ function SignOn({onSignIn}: SignOnProps) {
       }
       if(savedG) setGender(savedG);
       if(savedP) setPace(savedP as PaceMode);
+      const visited=await storageGet("has_visited");
+      if(!visited) setFirstVisit(true);
+      const count=await storageGetShared("signon_count");
+      if(count) setSignOnCount(count);
     })();
   },[]);
 
@@ -42,6 +48,10 @@ function SignOn({onSignIn}: SignOnProps) {
     await storageSet("saved_screennames",updated);
     await storageSet("saved_gender",gender);
     await storageSet("saved_pace",pace);
+    await storageSet("has_visited",true);
+    const prev=await storageGetShared("signon_count");
+    await storageSetShared("signon_count",(prev||0)+1);
+    setFirstVisit(false);
     unlockAudio(); playSound(SND_DOOROPEN); setLoading(true);
     setTimeout(()=>onSignIn(name,gender,pace),900);
   }
@@ -59,6 +69,7 @@ function SignOn({onSignIn}: SignOnProps) {
           <div style={{fontSize:48,lineHeight:1,marginBottom:4,filter:"drop-shadow(2px 2px 4px rgba(0,0,0,0.5))"}}>🏃</div>
           <div style={{color:"#fff",fontSize:16,fontWeight:"bold",fontFamily:"Arial,sans-serif",letterSpacing:1}}>AOL Instant Messenger</div>
           <div style={{color:"#ccc",fontSize:9,marginTop:2}}>TM</div>
+          {firstVisit&&<div style={{color:"#aab8d0",fontSize:10,fontStyle:"italic",marginTop:6,letterSpacing:0.5}}>it's 2003. you just got home from school.</div>}
         </div>
 
         {/* Form Section */}
@@ -138,6 +149,8 @@ function SignOn({onSignIn}: SignOnProps) {
           </button>
         </div>
         <div style={{textAlign:"center",fontSize:9,color:"#555",padding:"2px 0 3px",background:"#aab2bf",borderTop:"1px solid #999"}}>Version: 5.9.6089</div>
+        {signOnCount!==null&&signOnCount>0&&<div style={{textAlign:"center",fontSize:8,color:"#777",padding:"1px 0 2px",background:"#aab2bf"}}>{signOnCount.toLocaleString()} screen names created</div>}
+        <div style={{textAlign:"center",fontSize:7,color:"#999",padding:"2px 0 3px",background:"#aab2bf"}}>A nostalgia experience. Not affiliated with or endorsed by AOL, Inc.</div>
       </div>
     </div>
   );

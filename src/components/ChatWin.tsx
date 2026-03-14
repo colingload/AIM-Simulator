@@ -12,7 +12,8 @@ import Man from "./icons/Man";
 import BuddyAvatar from "./BuddyAvatar";
 import { exportChatLog } from "../utils/exportLog";
 import BuddyProfile from "./BuddyProfile";
-import { Message, ConvMessage, BuddyStatus, SessionEntry, UnsolUpdate } from "../types";
+import { Message, ConvMessage, BuddyStatus, SessionEntry, UnsolUpdate, ChatFormat } from "../types";
+import EmojiPicker from "./EmojiPicker";
 
 interface ChatWinProps {
   buddyId: string;
@@ -40,6 +41,10 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
   const [typing,setTyping]=useState(false);
   const [ready,setReady]=useState(false);
   const [showProfile,setShowProfile]=useState(false);
+  const [showEmoji,setShowEmoji]=useState(false);
+  const [showColorPicker,setShowColorPicker]=useState(false);
+  const [chatFmt,setChatFmt]=useState<ChatFormat>({font:"Arial",size:12,color:"#000000",bold:false,italic:false,underline:false});
+  const textareaRef=useRef<HTMLTextAreaElement>(null);
   const logRef=useRef<HTMLDivElement>(null);
   const conv=useRef<ConvMessage[]>([]); // raw conv — what gets stored
   const sessionLog=useRef<SessionEntry[]>([]); // [{sid,startIdx}] — tracks session boundaries
@@ -109,7 +114,11 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
     setReady(false);
     setMsgs([]);
     setTyping(false);
+    setShowEmoji(false);
+    setShowColorPicker(false);
     (async()=>{
+      const savedFmt=await storageGet("chat_format");
+      if(savedFmt) setChatFmt(savedFmt);
       const saved=await storageGet("chat_"+buddyId);
       const today=getDateStr();
 
@@ -219,7 +228,7 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
       return;
     }
 
-    const um={from:sn,text,ts:Date.now(),isNew:true,sid:sessionId};
+    const um={from:sn,text,ts:Date.now(),isNew:true,sid:sessionId,fmt:chatFmt};
     const wu=[...msgs,um];
     setMsgs(wu); playSound(SND_IMSEND);
 
@@ -307,24 +316,61 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
         {msgs.map((m,i)=>(
           <div key={i} style={{marginBottom:mobile?6:3,lineHeight:1.6,opacity:m.isOld?0.4:1}}>
             <span style={{fontWeight:"bold",fontSize:mobile?14:12,color:m.err?"#c00":m.from===buddy.sn?"#cc0000":"#0000cc"}}>{m.from}: </span>
-            <span style={{fontSize:mobile?14:12,color:m.err?"#c00":"#000"}}>{m.text}</span>
+            <span style={{
+              fontSize:m.fmt?.size||(mobile?14:12),
+              color:m.err?"#c00":(m.fmt?.color||"#000"),
+              fontFamily:m.fmt?.font||"inherit",
+              fontWeight:m.fmt?.bold?"bold":"normal",
+              fontStyle:m.fmt?.italic?"italic":"normal",
+              textDecoration:m.fmt?.underline?"underline":"none",
+            }}>{m.text}</span>
           </div>
         ))}
         {typing&&<div style={{color:"#aaa",fontSize:mobile?13:11,fontStyle:"italic"}}>{buddy.sn} is typing...</div>}
       </div>
-      {!mobile&&<div style={{background:WB,borderBottom:"1px solid #808080",padding:"2px 3px",display:"flex",gap:1}}>
-        {["A","A","a▲","A","ᴬA","B","I","U","link","✉","😊"].map((ic,i)=>(
-          <button key={i} style={{...BS,padding:"1px 3px",fontSize:i<2?12:10,minWidth:16,fontWeight:i===5?"bold":"normal",fontStyle:i===6?"italic":"normal",textDecoration:i===7?"underline":"none"}}>{ic}</button>
-        ))}
+      {!mobile&&<div style={{background:WB,borderBottom:"1px solid #808080",padding:"2px 3px",display:"flex",gap:1,alignItems:"center",position:"relative"}}>
+        <select value={chatFmt.font} onChange={e=>{const f={...chatFmt,font:e.target.value};setChatFmt(f);storageSet("chat_format",f);}} style={{fontSize:9,fontFamily:F,border:"1px inset #808080",padding:"1px 2px",maxWidth:80}}>
+          {["Arial","Times New Roman","Comic Sans MS","Georgia","Verdana","Courier New"].map(f=><option key={f} value={f} style={{fontFamily:f}}>{f}</option>)}
+        </select>
+        <select value={chatFmt.size} onChange={e=>{const f={...chatFmt,size:Number(e.target.value)};setChatFmt(f);storageSet("chat_format",f);}} style={{fontSize:9,fontFamily:F,border:"1px inset #808080",padding:"1px 2px",width:34}}>
+          {[10,12,14,16].map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+        <button onClick={()=>{const f={...chatFmt,bold:!chatFmt.bold};setChatFmt(f);storageSet("chat_format",f);}} style={{...BS,padding:"1px 4px",fontSize:11,fontWeight:"bold",minWidth:18,background:chatFmt.bold?"#c0c0ff":"linear-gradient(180deg,#ece9d8,#d4d0c8)"}}>B</button>
+        <button onClick={()=>{const f={...chatFmt,italic:!chatFmt.italic};setChatFmt(f);storageSet("chat_format",f);}} style={{...BS,padding:"1px 4px",fontSize:11,fontStyle:"italic",minWidth:18,background:chatFmt.italic?"#c0c0ff":"linear-gradient(180deg,#ece9d8,#d4d0c8)"}}>I</button>
+        <button onClick={()=>{const f={...chatFmt,underline:!chatFmt.underline};setChatFmt(f);storageSet("chat_format",f);}} style={{...BS,padding:"1px 4px",fontSize:11,textDecoration:"underline",minWidth:18,background:chatFmt.underline?"#c0c0ff":"linear-gradient(180deg,#ece9d8,#d4d0c8)"}}>U</button>
+        <button onClick={()=>setShowColorPicker(p=>!p)} style={{...BS,padding:"1px 4px",fontSize:10,minWidth:18,position:"relative"}}>
+          <span style={{color:chatFmt.color}}>A</span>
+          <span style={{display:"block",height:2,width:12,background:chatFmt.color,margin:"0 auto"}}/>
+        </button>
+        <div style={{position:"relative"}}>
+          <button onClick={()=>setShowEmoji(p=>!p)} style={{...BS,padding:"1px 4px",fontSize:12,minWidth:18}}>☺</button>
+          {showEmoji&&<EmojiPicker mobile={mobile} onPick={emoji=>{
+            if(textareaRef.current){
+              const ta=textareaRef.current;
+              const start=ta.selectionStart;
+              const end=ta.selectionEnd;
+              setInp(inp.slice(0,start)+emoji+inp.slice(end));
+              setTimeout(()=>{ta.focus();ta.setSelectionRange(start+emoji.length,start+emoji.length);},0);
+            } else {
+              setInp(inp+emoji);
+            }
+          }} onClose={()=>setShowEmoji(false)}/>}
+        </div>
         <div style={{flex:1}}/>
         <button onClick={()=>exportChatLog(buddy.sn,msgs,sn)} style={{...BS,padding:"1px 6px",fontSize:10}} title="Save conversation log">💾</button>
+        {showColorPicker&&<div style={{position:"absolute",top:"100%",left:0,zIndex:500,background:"#ece9d8",border:"2px solid",borderColor:"#fff #444 #444 #fff",padding:4,display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:2,boxShadow:"2px 2px 6px rgba(0,0,0,0.3)"}}>
+          {["#000000","#cc0000","#0000cc","#008800","#880088","#cc6600","#800000","#008080","#000080","#888888","#ff3399","#663300"].map(c=>(
+            <button key={c} onClick={()=>{const f={...chatFmt,color:c};setChatFmt(f);storageSet("chat_format",f);setShowColorPicker(false);}}
+              style={{width:16,height:16,background:c,border:chatFmt.color===c?"2px solid #fff":"1px solid #666",cursor:"pointer",padding:0}}/>
+          ))}
+        </div>}
       </div>}
       <div style={{display:"flex",gap:0,borderTop:mobile?"1px solid #808080":"none"}}>
-        <textarea value={inp} onChange={e=>setInp(e.target.value)} onClick={unlockAudio}
+        <textarea ref={textareaRef} value={inp} onChange={e=>setInp(e.target.value)} onClick={unlockAudio}
           onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
           disabled={!can}
           placeholder={can?"Type here...":buddy.sn+" is "+status}
-          style={{flex:1,height:mobile?44:55,padding:mobile?"10px 12px":"5px 9px",fontSize:mobile?16:12,border:"none",borderBottom:mobile?"none":"1px solid #808080",outline:"none",resize:"none",fontFamily:F,background:can?"#fff":"#f0ede8",color:can?"#000":"#999",boxSizing:"border-box"}}/>
+          style={{flex:1,height:mobile?44:55,padding:mobile?"10px 12px":"5px 9px",fontSize:mobile?16:chatFmt.size,border:"none",borderBottom:mobile?"none":"1px solid #808080",outline:"none",resize:"none",fontFamily:mobile?F:chatFmt.font,background:can?"#fff":"#f0ede8",color:can?chatFmt.color:"#999",fontWeight:chatFmt.bold?"bold":"normal",fontStyle:chatFmt.italic?"italic":"normal",textDecoration:chatFmt.underline?"underline":"none",boxSizing:"border-box"}}/>
         <button onClick={send} disabled={!can||!inp.trim()} style={{...BS,border:"none",borderLeft:"1px solid #ccc",padding:mobile?"10px 18px":"2px 10px",fontWeight:"bold",fontSize:mobile?16:10,background:(can&&inp.trim())?"linear-gradient(180deg,#4a90d9,#2060b0)":"linear-gradient(180deg,#ece9d8,#d4d0c8)",color:(can&&inp.trim())?"#fff":"#999",borderRadius:0}}>
           Send
         </button>

@@ -9,6 +9,15 @@ export interface Buddy {
   _origSystem?: string;
 }
 
+export interface ChatFormat {
+  font: string;
+  size: number;
+  color: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+}
+
 export interface Message {
   from: string;
   text: string;
@@ -16,6 +25,7 @@ export interface Message {
   isNew?: boolean;
   sid?: string;
   isOld?: boolean;
+  fmt?: ChatFormat;
 }
 
 export interface ChatData {
