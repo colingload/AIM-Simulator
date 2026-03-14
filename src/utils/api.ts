@@ -1,5 +1,5 @@
 export const _isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-const _apiBase = _isLocal ? '/api/anthropic/v1/messages' : 'https://api.anthropic.com/v1/messages';
+const _apiBase = '/api/anthropic/v1/messages';
 
 // ── API QUEUE ───────────────────────────────────────────────────
 let _apiQueue: Promise<unknown> = Promise.resolve();
