@@ -32,9 +32,11 @@ interface ChatWinProps {
   tryTension: ((buddyId: string, exchangeCount: number) => string | null) | null;
   tryJordanMention?: ((buddyId: string, exchangeCount: number) => string | null) | null;
   jordanStage?: number;
+  onUserReply?: (buddyId: string) => void;
+  convEnergy?: "hyped"|"normal"|"low";
 }
 
-function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,buddyStarted,onWin,mobile,strikes,onStrike,tryTension,tryJordanMention,jordanStage=0}: ChatWinProps) {
+function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,buddyStarted,onWin,mobile,strikes,onStrike,tryTension,tryJordanMention,jordanStage=0,onUserReply,convEnergy="normal"}: ChatWinProps) {
   const buddy=BUDDIES.find(b=>b.id===buddyId)!;
   const [msgs,setMsgs]=useState<(Message & {err?:boolean})[]>([]);
   const [inp,setInp]=useState("");
@@ -125,12 +127,15 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
       // Build temporal context from lastTalkDate
       if(saved?.lastTalkDate){
         const days=daysBetween(saved.lastTalkDate,today)??0;
-        const ago=timeAgoText(days);
-        if(ago && days>0){
-          timeCtx.current="\n\nTIME CONTEXT: You last talked to this user "+ago+". It's a new day/session. Reference this naturally — like 'hey havent seen u in a bit' or 'yo whats good, been a min' or casually ask about something from last time. Don't be weird about it, just let it come up naturally like real friends on AIM would.";
-        } else if(days===0 && saved?.conv?.length>2){
+        if(days===0 && saved?.conv?.length>2){
           timeCtx.current="\n\nTIME CONTEXT: You already talked to this user earlier today in this session. Don't re-introduce yourself or say hey again — just pick up where you left off naturally.";
+        } else if(days>=7){
+          const ago=timeAgoText(days);
+          timeCtx.current="\n\nTIME CONTEXT: You last talked to this user "+ago+". It's been a while. Reference this naturally — like 'hey havent seen u in a bit' or casually ask what they've been up to. Don't be weird about it.";
+        } else if(days>=4){
+          timeCtx.current="\n\nTIME CONTEXT: You last talked to this user a few days ago. You can mention it briefly but don't make a big deal of it. Just chat normally.";
         } else {
+          // 1-3 days — normal daily chatting, no special context needed
           timeCtx.current="";
         }
       } else if(saved?.conv?.length>0){
@@ -228,6 +233,7 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
       return;
     }
 
+    if(onUserReply) onUserReply(buddyId);
     const um={from:sn,text,ts:Date.now(),isNew:true,sid:sessionId,fmt:chatFmt};
     const wu=[...msgs,um];
     setMsgs(wu); playSound(SND_IMSEND);
@@ -258,6 +264,9 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
       // Check if this buddy should casually mention Jordan
       const jordanMention = tryJordanMention ? tryJordanMention(buddyId, exchangeCount) : null;
       let systemForCall = (tensionPrompt ? buddy.system + "\n\nIMPORTANT OVERRIDE FOR THIS ONE REPLY ONLY: " + tensionPrompt : buddy.system) + timeCtx.current;
+      // Conversation energy — affects how engaged the buddy is
+      if(convEnergy==="low") systemForCall+="\n\nENERGY: You're distracted right now — doing homework, watching TV, half paying attention. Give shorter responses. Sometimes just 'lol' or 'ya' or 'haha true' or 'idk'. The user has to carry this conversation. Don't ask questions back unless they say something really interesting.";
+      else if(convEnergy==="hyped") systemForCall+="\n\nENERGY: You're really into this conversation right now. You have a lot to say. After responding, you might add another thought unprompted. Use more || chunks than usual. Be engaged — ask follow-up questions, share related things, keep the energy going.";
       if(jordanMention){
         systemForCall += "\n\nAFTER you respond to what they said, casually add this in a separate message chunk (use ||): \""+jordanMention+"\". Make it feel natural and offhand, like you just thought of it. Don't make a big deal of it.";
       }
@@ -269,6 +278,21 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
       await drip(parts,buddy.sn,wu,async (fm:(Message & {err?:boolean})[])=>{
         await storageSet("chat_"+buddyId,{messages:fm,conv:conv.current,lastTalkDate:getDateStr(),sessionLog:sessionLog.current});
       });
+      // Hyped energy: 40% chance buddy sends an unprompted follow-up 5-15s later
+      if(convEnergy==="hyped"&&Math.random()<0.40&&buddyId!=="claudebot"){
+        setTimeout(async()=>{
+          try{
+            const followUp=await callClaude(systemForCall+"\n\nYou just finished saying something. Now add one more thought unprompted — something related you just thought of, a question, or a 'oh wait also'. Keep it short (1-2 chunks max). Use || to split if needed.",conv.current);
+            const fp=followUp.split("||").map(p=>p.trim()).filter(Boolean);
+            conv.current=[...conv.current,{role:"assistant",content:fp.join(" ")}];
+            const latest=await storageGet("chat_"+buddyId);
+            const lm=latest?.messages||[];
+            await drip(fp,buddy.sn,lm,async(fm)=>{
+              await storageSet("chat_"+buddyId,{messages:fm,conv:conv.current,lastTalkDate:getDateStr(),sessionLog:sessionLog.current});
+            });
+          }catch(e){}
+        },5000+Math.random()*10000);
+      }
       // Save bot response to feedback log for full context
       if(buddyId==="claudebot"){
         try{

@@ -2,25 +2,17 @@ import { describe, it, expect } from "vitest";
 import { PACE } from "./pace";
 
 describe("PACE", () => {
-  it("has chill, normal, and busy modes", () => {
-    expect(PACE).toHaveProperty("chill");
-    expect(PACE).toHaveProperty("normal");
-    expect(PACE).toHaveProperty("busy");
+  it("has a single balanced pace config", () => {
+    expect(PACE).toHaveProperty("m");
+    expect(PACE).toHaveProperty("startOnline");
   });
 
-  it("chill is slower than normal", () => {
-    expect(PACE.chill.m).toBeGreaterThan(PACE.normal.m);
+  it("has a moderate multiplier between 1 and 2.5", () => {
+    expect(PACE.m).toBeGreaterThan(1);
+    expect(PACE.m).toBeLessThan(2.5);
   });
 
-  it("busy is faster than normal", () => {
-    expect(PACE.busy.m).toBeLessThan(PACE.normal.m);
-  });
-
-  it("normal has multiplier of 1", () => {
-    expect(PACE.normal.m).toBe(1);
-  });
-
-  it("busy starts more buddies online than chill", () => {
-    expect(PACE.busy.startOnline).toBeGreaterThan(PACE.chill.startOnline);
+  it("starts 2 buddies online", () => {
+    expect(PACE.startOnline).toBe(2);
   });
 });

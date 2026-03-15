@@ -49,8 +49,6 @@ export type BuddyStatus = "online" | "away" | "offline";
 
 export type Screen = "signin" | "main" | "kicked" | "won" | "banned";
 
-export type PaceMode = "chill" | "normal" | "busy";
-
 export interface PaceConfig {
   m: number;
   startOnline: number;

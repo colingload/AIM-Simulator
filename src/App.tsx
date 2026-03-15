@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { BuddyStatus, UnsolUpdate, Toast, PaceMode, PaceConfig } from "./types";
+import type { BuddyStatus, UnsolUpdate, Toast, PaceConfig } from "./types";
 
 // Constants
 import { BUDDIES, MY_SN, AIM_STYLE } from "./constants/buddies";
@@ -38,7 +38,7 @@ export default function App() {
   const [mySN,setMySN]=useState(MY_SN);
   const [awayMode,setAwayMode]=useState(()=>new URLSearchParams(window.location.search).get("away")==="1");
   const sessionId=useRef("");
-  const paceRef=useRef<PaceConfig>(PACE.normal);
+  const paceRef=useRef<PaceConfig>(PACE);
   const [statuses,setStatuses]=useState<Record<string, BuddyStatus>>({});
   const [awayMsgs,setAwayMsgs]=useState<Record<string, string>>({});
   const [openChats,setOpenChats]=useState<string[]>([]);
@@ -67,6 +67,20 @@ export default function App() {
   const stRef=useRef<Record<string, BuddyStatus>>({});
   const tmr=useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const itm=useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const lastProactiveReply=useRef<Record<string, number>>({}); // timestamp of last user reply per buddy
+  const sessionVibeRef=useRef<"social"|"quiet"|"mixed">("social");
+  const mixedActiveBuddy=useRef<string>(""); // for "mixed" session vibe
+  const convEnergy=useRef<Record<string, "hyped"|"normal"|"low">>({}); // per-conversation energy
+
+  // Per-buddy lifecycle personality — multiplies lifecycle timers
+  const LIFECYCLE_STYLE: Record<string, number> = {
+    claudebot: 1.0,
+    sportz: 0.8,     // shorter sessions
+    music: 1.3,      // always online
+    gossip: 1.0,     // average
+    angst: 1.5,      // lurks forever
+    crush: 1.2,      // slightly longer
+  };
 
   // Load ban state on mount
   useEffect(()=>{
@@ -168,9 +182,11 @@ export default function App() {
     const cur=stRef.current[bid]||"offline";
     let delay: number, next: BuddyStatus;
     const pm=paceRef.current.m;
-    if(cur==="online"){delay=rMin(5*pm,12*pm);next=Math.random()<0.6?"away":"offline";}
-    else if(cur==="away"){delay=rMin(3*pm,8*pm);next=Math.random()<0.5?"online":"offline";}
-    else{delay=rMin(4*pm,10*pm);next="online";}
+    const ls=LIFECYCLE_STYLE[bid]||1.0;
+    const jitter=0.7+Math.random()*0.6; // ±30% jitter to prevent re-sync
+    if(cur==="online"){delay=rMin(8*pm*ls*jitter,25*pm*ls*jitter);next=Math.random()<0.6?"away":"offline";}
+    else if(cur==="away"){delay=rMin(5*pm*ls*jitter,15*pm*ls*jitter);next=Math.random()<0.5?"online":"offline";}
+    else{delay=rMin(6*pm*ls*jitter,20*pm*ls*jitter);next="online";}
     tmr.current[bid]=setTimeout(async()=>{
       if(next==="offline"&&activeCount(stRef.current)<=1)next="away";
 
@@ -236,7 +252,12 @@ export default function App() {
       // Don't message the player while they're away — but keep rescheduling
       if(myAwayRef.current!==null){schedIncoming(bid);return;}
 
-      const [skipPct, quickPct] = bid==="crush" ? getCrushOutreach() : (OUTREACH_STYLE[bid] || [30, 40, 30]);
+      let [skipPct, quickPct] = bid==="crush" ? getCrushOutreach() : (OUTREACH_STYLE[bid] || [30, 40, 30]);
+      // Apply session vibe — social sessions halve skip%, quiet sessions double it
+      const vibe = sessionVibeRef.current;
+      if(vibe==="social") skipPct = Math.max(2, skipPct * 0.5);
+      else if(vibe==="quiet") skipPct = Math.min(92, skipPct * 3);
+      else if(vibe==="mixed") skipPct = bid===mixedActiveBuddy.current ? Math.max(2, skipPct * 0.5) : Math.min(92, skipPct * 3);
       const roll = Math.random()*100;
 
       if(roll < skipPct){
@@ -253,11 +274,32 @@ export default function App() {
         m=[...m,{from:b.sn,text:txt,ts:Date.now(),isNew:true,sid:sessionId.current}];
         await storageSet("chat_"+bid,{messages:m,conv:uc,lastTalkDate:getDateStr()});
         buddyInit.current.add(bid);
+        lastProactiveReply.current[bid]=0; // mark: waiting for user reply
         setOpenChats(p=>p.includes(bid)?p:[...p,bid]);
         if(!mobileRef.current) setFocused(bid);
         setUnsol(p=>({...p,[bid]:{msgs:[...m],conv:uc,v:++unsolV.current}}));
         setUnread(p=>({...p,[bid]:(p[bid]||0)+1}));
         playSound(SND_IMRCV);
+        // Non-response follow-up: check if user replied within 2-4 min
+        const followUpDelay=(120000+Math.random()*120000)*pm;
+        setTimeout(async()=>{
+          if(lastProactiveReply.current[bid]!==0) return; // user replied
+          if(stRef.current[bid]!=="online") return;
+          const r2=Math.random();
+          if(r2<0.60){ /* buddy gives up silently */ }
+          else if(r2<0.90){
+            const followUps=["hello??","u there?","hellooo","...","lol ok","guess ur busy","ok nvm"];
+            const ft=followUps[Math.floor(Math.random()*followUps.length)];
+            await sendBuddyMsg(bid,b.sn,ft);
+          } else {
+            // buddy gets bored and goes away/offline
+            const next2: BuddyStatus=Math.random()<0.5?"away":"offline";
+            stRef.current={...stRef.current,[bid]:next2};
+            setStatuses({...stRef.current});
+            if(next2==="away"){playSound(SND_BUDDYOUT);toast(b.emoji+" "+b.sn+" is away");genAway(b).then(m2=>setAwayMsgs(p=>({...p,[bid]:m2}))).catch(()=>setAwayMsgs(p=>({...p,[bid]:b.away[0]})));}
+            else{playSound(SND_BUDDYOUT);toast(b.emoji+" "+b.sn+" signed off");}
+          }
+        },followUpDelay);
       } else {
         try{
           const raw=await callClaude(b.system,[{role:"user",content:"Send a short unprompted AIM message to start a conversation."}]);
@@ -270,6 +312,7 @@ export default function App() {
           m=[...m,{from:b.sn,text:parts[0],ts:Date.now(),isNew:true,sid:sessionId.current}];
           await storageSet("chat_"+bid,{messages:m,conv:uc,lastTalkDate:getDateStr()});
           buddyInit.current.add(bid);
+          lastProactiveReply.current[bid]=0; // waiting for user reply
           setOpenChats(p=>p.includes(bid)?p:[...p,bid]);
           if(!mobileRef.current) setFocused(bid);
           setUnsol(p=>({...p,[bid]:{msgs:[...m],conv:uc,v:++unsolV.current}}));
@@ -292,12 +335,23 @@ export default function App() {
     },delay);
   },[]);
 
-  async function signIn(sn: string, gender: string, pace: PaceMode){
+  async function signIn(sn: string, gender: string){
     setMySN(sn);
     sessionId.current = Date.now().toString();
-    paceRef.current = PACE[pace]||PACE.normal;
+    paceRef.current = PACE;
     tensionCount.current = 0;
     tensionUsedBy.current = new Set();
+    lastProactiveReply.current = {};
+    convEnergy.current = {};
+
+    // Session vibe — determines who drives conversation this session
+    const vibeRoll = Math.random();
+    if(vibeRoll < 0.40) sessionVibeRef.current = "social";
+    else if(vibeRoll < 0.80) sessionVibeRef.current = "quiet";
+    else sessionVibeRef.current = "mixed";
+    // For "mixed" sessions, pick one buddy who's active (the rest are quiet)
+    const nonAlways = BUDDIES.filter(b=>!b.always && b.id!=="crush");
+    mixedActiveBuddy.current = nonAlways[Math.floor(Math.random()*nonAlways.length)]?.id || "";
     for(const b of BUDDIES) {
       if(b.id==="crush") continue;
       const saved = await storageGet("chat_"+b.id);
@@ -378,7 +432,7 @@ export default function App() {
     if(crushBuddy) { crushBuddy._origSystem = crushSystem; crushBuddy.system = crushSystem; }
 
     BUDDIES.forEach(b => {
-      if(b.id==="crush") return;
+      if(b.id==="crush"||b.id==="claudebot") return;
       if (!b._origSystem) b._origSystem = b.system;
       b.system = b._origSystem + " " + gAddr;
     });
@@ -442,9 +496,12 @@ export default function App() {
       }, 8000+Math.random()*25000);
     }
 
-    nb.forEach(b=>{
+    nb.forEach((b,idx)=>{
       const pm=paceRef.current.m;
-      const fd=(40000+Math.random()*80000)*pm;
+      const ls=LIFECYCLE_STYLE[b.id]||1.0;
+      // Stagger start: spread buddies across the first few minutes so they don't sync
+      const staggerBase=(30000+Math.random()*270000)*idx/Math.max(nb.length-1,1); // 30s-5min spread
+      const fd=((40000+Math.random()*80000)*pm*ls)+staggerBase;
       tmr.current[b.id]=setTimeout(async()=>{
         const cur=stRef.current[b.id]||"offline";
         let next: BuddyStatus=cur==="online"?(Math.random()<0.6?"away":"offline"):cur==="away"?(Math.random()<0.5?"online":"offline"):"online";
@@ -505,16 +562,28 @@ export default function App() {
       if(stRef.current[b.id]!=="online") return;
       setOpenChats(prev=>{
         if(prev.includes(b.id)) return prev;
-        if(Math.random()<0.5){
+        if(Math.random()<0.25){
           clearTimeout(itm.current[b.id]);
           itm.current[b.id]=setTimeout(()=>{
             clearTimeout(itm.current[b.id]);
             schedIncoming(b.id, true);
-          }, (20000+Math.random()*40000)*paceRef.current.m);
+          }, (30000+Math.random()*60000)*paceRef.current.m);
         }
         return prev;
       });
     });
+  }
+
+  function handleUserReply(bid: string){
+    lastProactiveReply.current[bid]=Date.now();
+  }
+
+  function getConvEnergy(bid: string): "hyped"|"normal"|"low" {
+    if(convEnergy.current[bid]) return convEnergy.current[bid];
+    const r=Math.random();
+    const e: "hyped"|"normal"|"low" = r<0.30?"hyped":r<0.80?"normal":"low";
+    convEnergy.current[bid]=e;
+    return e;
   }
 
   function closeChat(bid: string){
@@ -582,7 +651,7 @@ export default function App() {
         ) : (
           <ChatWin key={chatBid} buddyId={chatBid} sn={mySN} status={statuses[chatBid]} awayMsg={awayMsgs[chatBid]}
             onClose={()=>closeChat(chatBid)} onTop={()=>{}} extUpdate={unsol[chatBid]} sessionId={sessionId.current}
-            buddyStarted={buddyInit.current.has(chatBid)} onWin={triggerWin} mobile={true} strikes={strikes} onStrike={handleStrike} tryTension={tryTension} tryJordanMention={tryJordanMention} jordanStage={jordanStage.current}/>
+            buddyStarted={buddyInit.current.has(chatBid)} onWin={triggerWin} mobile={true} strikes={strikes} onStrike={handleStrike} tryTension={tryTension} tryJordanMention={tryJordanMention} jordanStage={jordanStage.current} onUserReply={handleUserReply} convEnergy={getConvEnergy(chatBid)}/>
         )}
         <Toasts items={toasts}/>
         {awayBuddy && awayPop && <AwayPopup buddy={awayBuddy} msg={awayMsgs[awayPop]} onClose={()=>setAwayPop(null)}/>}
@@ -618,7 +687,7 @@ export default function App() {
         <Drag key={id} x0={290+i*28} y0={14+i*26} z={focused===id?100:50+i} onTop={()=>setFocused(id)}>
           <ChatWin buddyId={id} sn={mySN} status={statuses[id]} awayMsg={awayMsgs[id]}
             onClose={()=>closeChat(id)} onTop={()=>setFocused(id)} extUpdate={unsol[id]} sessionId={sessionId.current}
-            buddyStarted={buddyInit.current.has(id)} onWin={triggerWin} mobile={false} strikes={strikes} onStrike={handleStrike} tryTension={tryTension} tryJordanMention={tryJordanMention} jordanStage={jordanStage.current}/>
+            buddyStarted={buddyInit.current.has(id)} onWin={triggerWin} mobile={false} strikes={strikes} onStrike={handleStrike} tryTension={tryTension} tryJordanMention={tryJordanMention} jordanStage={jordanStage.current} onUserReply={handleUserReply} convEnergy={getConvEnergy(id)}/>
         </Drag>
       ))}
 

@@ -1,2 +1,2 @@
-// Pace multipliers — scale all timers. Lower = faster action.
-export const PACE={chill:{m:2.5,startOnline:1},normal:{m:1,startOnline:2},busy:{m:0.5,startOnline:3}};
+// Single balanced pace — no user selection. Sits between old "normal" (1.0) and "chill" (2.5).
+export const PACE = { m: 1.5, startOnline: 2 };

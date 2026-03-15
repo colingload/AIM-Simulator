@@ -4,10 +4,8 @@ import { storageGet, storageSet, storageGetShared, storageSetShared } from "../u
 import { unlockAudio, playSound, SND_DOOROPEN } from "../constants/sounds";
 import Man from "./icons/Man";
 import XBtn from "./icons/XBtn";
-import { PaceMode } from "../types";
-
 interface SignOnProps {
-  onSignIn: (name: string, gender: string, pace: PaceMode) => void;
+  onSignIn: (name: string, gender: string) => void;
 }
 
 function SignOn({onSignIn}: SignOnProps) {
@@ -17,7 +15,6 @@ function SignOn({onSignIn}: SignOnProps) {
   const [snMode,setSnMode]=useState("select");
   const [newSN,setNewSN]=useState("");
   const [gender,setGender]=useState("");
-  const [pace,setPace]=useState<PaceMode>("normal");
   const [firstVisit,setFirstVisit]=useState(false);
   const [signOnCount,setSignOnCount]=useState<number|null>(null);
 
@@ -25,7 +22,6 @@ function SignOn({onSignIn}: SignOnProps) {
     (async()=>{
       const saved=await storageGet("saved_screennames");
       const savedG=await storageGet("saved_gender");
-      const savedP=await storageGet("saved_pace");
       if(saved&&saved.length){
         setSavedSNs(saved);
         setSn(saved[0]);
@@ -33,7 +29,6 @@ function SignOn({onSignIn}: SignOnProps) {
         setSnMode("new");
       }
       if(savedG) setGender(savedG);
-      if(savedP) setPace(savedP as PaceMode);
       const visited=await storageGet("has_visited");
       if(!visited) setFirstVisit(true);
       const count=await storageGetShared("signon_count");
@@ -47,13 +42,12 @@ function SignOn({onSignIn}: SignOnProps) {
     const updated=[name,...savedSNs.filter(s=>s!==name)].slice(0,5);
     await storageSet("saved_screennames",updated);
     await storageSet("saved_gender",gender);
-    await storageSet("saved_pace",pace);
     await storageSet("has_visited",true);
     const prev=await storageGetShared("signon_count");
     await storageSetShared("signon_count",(prev||0)+1);
     setFirstVisit(false);
     unlockAudio(); playSound(SND_DOOROPEN); setLoading(true);
-    setTimeout(()=>onSignIn(name,gender,pace),900);
+    setTimeout(()=>onSignIn(name,gender),900);
   }
 
   return (
@@ -122,17 +116,6 @@ function SignOn({onSignIn}: SignOnProps) {
             </div>
           </div>
 
-          {/* Vibe Selection */}
-          <div style={{display:"flex",alignItems:"center",marginBottom:6,gap:6}}>
-            <label style={{fontSize:11,fontWeight:"bold",flexShrink:0}}>Vibe</label>
-            <div style={{display:"flex",gap:4}}>
-              {([["chill","🐢 Chill"],["normal","😎 Normal"],["busy","🔥 Busy"]] as [PaceMode, string][]).map(([v,label])=>(
-                <button key={v} onClick={()=>setPace(v)} style={{...BS,fontSize:10,padding:"2px 8px",background:pace===v?"linear-gradient(180deg,#4a90d9,#2060b0)":"linear-gradient(180deg,#ece9d8,#d4d0c8)",color:pace===v?"#fff":"#000",borderColor:pace===v?"#2060b0 #0a3a8a #0a3a8a #2060b0":"#fff #888 #888 #fff"}}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Bottom Bar */}
