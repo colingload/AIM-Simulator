@@ -279,7 +279,7 @@ function ChatWin({buddyId,sn,status,awayMsg,onClose,onTop,extUpdate,sessionId,bu
         await storageSet("chat_"+buddyId,{messages:fm,conv:conv.current,lastTalkDate:getDateStr(),sessionLog:sessionLog.current});
       });
       // Hyped energy: 40% chance buddy sends an unprompted follow-up 5-15s later
-      if(convEnergy==="hyped"&&Math.random()<0.40&&buddyId!=="claudebot"){
+      if(convEnergy==="hyped"&&Math.random()<0.50&&buddyId!=="claudebot"){
         setTimeout(async()=>{
           try{
             const followUp=await callClaude(systemForCall+"\n\nYou just finished saying something. Now add one more thought unprompted — something related you just thought of, a question, or a 'oh wait also'. Keep it short (1-2 chunks max). Use || to split if needed.",conv.current);

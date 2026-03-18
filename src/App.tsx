@@ -226,19 +226,19 @@ export default function App() {
   };
   const OUTREACH_STYLE: Record<string, number[]> = {
     claudebot: [60, 30, 10],
-    sportz:    [10, 35, 55],
-    music:     [20, 45, 35],
-    gossip:    [5,  20, 75],
-    angst:     [40, 45, 15],
-    crush:     [35, 45, 20], // base — overridden by stage
+    sportz:    [8,  32, 60],
+    music:     [15, 45, 40],
+    gossip:    [3,  17, 80],
+    angst:     [35, 45, 20],
+    crush:     [30, 45, 25], // base — overridden by stage
   };
   // Jordan outreach evolves with relationship stage
   function getCrushOutreach(): number[] {
     const s=jordanStage.current;
-    if(s>=3) return [5, 40, 55];   // almost never skips, sends real messages
-    if(s>=2) return [15, 40, 45];  // initiates more
-    if(s>=1) return [25, 45, 30];  // slightly less shy
-    return [35, 45, 20];           // default: shy
+    if(s>=3) return [3, 37, 60];   // almost never skips, sends real messages
+    if(s>=2) return [10, 40, 50];  // initiates more
+    if(s>=1) return [20, 45, 35];  // slightly less shy
+    return [30, 45, 25];           // default: shy
   }
 
   const schedIncoming=useCallback((bid: string, first=false)=>{
@@ -346,7 +346,7 @@ export default function App() {
 
     // Session vibe — determines who drives conversation this session
     const vibeRoll = Math.random();
-    if(vibeRoll < 0.40) sessionVibeRef.current = "social";
+    if(vibeRoll < 0.45) sessionVibeRef.current = "social";
     else if(vibeRoll < 0.80) sessionVibeRef.current = "quiet";
     else sessionVibeRef.current = "mixed";
     // For "mixed" sessions, pick one buddy who's active (the rest are quiet)
@@ -581,7 +581,7 @@ export default function App() {
   function getConvEnergy(bid: string): "hyped"|"normal"|"low" {
     if(convEnergy.current[bid]) return convEnergy.current[bid];
     const r=Math.random();
-    const e: "hyped"|"normal"|"low" = r<0.30?"hyped":r<0.80?"normal":"low";
+    const e: "hyped"|"normal"|"low" = r<0.40?"hyped":r<0.85?"normal":"low";
     convEnergy.current[bid]=e;
     return e;
   }
