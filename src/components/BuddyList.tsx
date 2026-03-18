@@ -66,8 +66,7 @@ function BuddyList({sn,statuses,onOpen,onOff,mobile,unread,myAway,onSetAway}: Bu
               onMouseLeave={e=>{if(!mobile){e.currentTarget.style.background="transparent";e.currentTarget.style.color="#000";}}}>
               <BuddyAvatar buddyId={b.id} size={mobile?28:18}/>
               <div style={dot(st)}/>
-              <span style={{fontSize:mobile?15:12,fontWeight:st==="online"||hasUnread?"bold":"normal",color:st==="offline"?"#888":"inherit",flex:1}}>{b.sn}</span>
-              {hasUnread&&<span style={{background:"#cc0000",color:"#fff",borderRadius:10,fontSize:mobile?12:9,padding:mobile?"2px 8px":"1px 5px",fontWeight:"bold",minWidth:mobile?20:14,textAlign:"center"}}>{unread[b.id]}</span>}
+              <span style={{fontSize:mobile?15:12,fontWeight:st==="online"||hasUnread?"bold":"normal",color:st==="offline"?"#888":"inherit",flex:1}}>{b.sn}{hasUnread&&<span style={{color:"#cc0000",fontWeight:"bold",marginLeft:4}}>({unread[b.id]})</span>}</span>
               {st==="away"&&!hasUnread&&<span style={{fontSize:mobile?11:9,color:"#886600"}}>away</span>}
             </div>
           );

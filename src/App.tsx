@@ -5,7 +5,7 @@ import type { BuddyStatus, UnsolUpdate, Toast, PaceConfig } from "./types";
 import { BUDDIES, MY_SN, AIM_STYLE } from "./constants/buddies";
 import { PACE } from "./constants/pace";
 import { F, WB } from "./constants/styles";
-import { playSound, unlockAudio, SND_BUDDYIN, SND_BUDDYOUT, SND_DOOROPEN, SND_IMRCV } from "./constants/sounds";
+import { playSound, unlockAudio, SND_BUDDYIN, SND_BUDDYOUT, SND_IMRCV } from "./constants/sounds";
 
 // Utils
 import { callClaude } from "./utils/api";
@@ -276,7 +276,7 @@ export default function App() {
         buddyInit.current.add(bid);
         lastProactiveReply.current[bid]=0; // mark: waiting for user reply
         setOpenChats(p=>p.includes(bid)?p:[...p,bid]);
-        if(!mobileRef.current) setFocused(bid);
+        /* don't auto-focus — let unread badge show on buddy list */
         setUnsol(p=>({...p,[bid]:{msgs:[...m],conv:uc,v:++unsolV.current}}));
         setUnread(p=>({...p,[bid]:(p[bid]||0)+1}));
         playSound(SND_IMRCV);
@@ -314,7 +314,7 @@ export default function App() {
           buddyInit.current.add(bid);
           lastProactiveReply.current[bid]=0; // waiting for user reply
           setOpenChats(p=>p.includes(bid)?p:[...p,bid]);
-          if(!mobileRef.current) setFocused(bid);
+          /* don't auto-focus — let unread badge show */
           setUnsol(p=>({...p,[bid]:{msgs:[...m],conv:uc,v:++unsolV.current}}));
           setUnread(p=>({...p,[bid]:(p[bid]||0)+1}));
           playSound(SND_IMRCV);
@@ -555,7 +555,7 @@ export default function App() {
     setFocused(bid);
     setUnread(p=>({...p,[bid]:0}));
     if(mobile) setMobileView(bid);
-    if(statuses[bid]==="online")playSound(SND_DOOROPEN);
+    /* door-open sound is sign-on only — not when opening a chat */
 
     BUDDIES.forEach(b=>{
       if(b.id===bid||b.always) return;
